@@ -3,6 +3,7 @@ export * from "./pkg/wasmer_wasi_js";
 // import { InitInput } from "./pkg/wasmer_wasi_js";
 import load from "./pkg/wasmer_wasi_js";
 import wasm_bytes from "./pkg/wasmer_wasi_js_bg.wasm";
+import { Buffer } from "buffer";
 
 interface MimeBuffer extends Buffer {
 	type: string;
@@ -44,7 +45,7 @@ function dataUriToBuffer(uri: string): MimeBuffer {
 		if (meta[i] === 'base64') {
 			base64 = true;
 		} else {
-			typeFull += `;${  meta[i]}`;
+			typeFull += `;${meta[i]}`;
 			if (meta[i].indexOf('charset=') === 0) {
 				charset = meta[i].substring(8);
 			}
@@ -75,11 +76,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 let inited: Promise<any> | null = null;
 export const init = async (input?: InitInput | Promise<InitInput>, force?: boolean) => {
-    if (inited === null || force === true) {
+	if (inited === null || force === true) {
 		if (!input) {
 			input = await WebAssembly.compile(dataUriToBuffer(wasm_bytes as any as string));
 		}
-        inited = load(input);
-    }
-    await inited;
+		inited = load(input);
+	}
+	await inited;
 }

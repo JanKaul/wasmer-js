@@ -15,6 +15,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import { terser } from 'rollup-plugin-terser';
 import pkg from './package.json';
 import typescript from 'rollup-plugin-typescript2';
+import nodePolyfills from 'rollup-plugin-polyfill-node';
 // import { wasm } from '@rollup/plugin-wasm';
 // import smartAsset from "rollup-plugin-smart-asset"
 import url from '@rollup/plugin-url';
@@ -82,8 +83,9 @@ const makeConfig = (env = 'development') => {
                 // limit: 0,
             }),
             // Uncomment the following 2 lines if your library has external dependencies
-            resolve(), // teach Rollup how to find external modules
+            resolve({"preferBuiltins": false}), // teach Rollup how to find external modules
             commonjs(),
+            nodePolyfills({"include": ["buffer"]}),
             typescript({
                 rollupCommonJSResolveHack: false,
                 clean: true,          
