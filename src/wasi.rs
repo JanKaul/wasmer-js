@@ -1,4 +1,4 @@
-use crate::fs::MemFS;
+use crate::lightning_fs::LightningFS;
 use std::io::{Read, Write};
 use js_sys::{Object, Reflect};
 use wasm_bindgen::prelude::*;
@@ -87,7 +87,7 @@ impl WASI {
         let fs = {
             let fs = js_sys::Reflect::get(&config, &"fs".into())?;
             if fs.is_undefined() {
-                MemFS::new()?
+                LightningFS::new()?
             } else {
                 MemFS::from_js(fs)?
             }
@@ -122,12 +122,12 @@ impl WASI {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn fs(&mut self) -> Result<MemFS, JsValue> {
+    pub fn fs(&mut self) -> Result<LightningFS, JsValue> {
         let mut state = self.wasi_env.data_mut(&mut self.store).state();
         let mem_fs = state
             .fs
             .fs_backing
-            .downcast_ref::<MemFS>()
+            .downcast_ref::<LightningFS>()
             .ok_or_else(|| js_sys::Error::new(&format!("Failed to downcast to MemFS")))?;
         Ok(mem_fs.clone())
     }

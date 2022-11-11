@@ -53,16 +53,16 @@ export class JSVirtualFile {
 }
 /**
 */
+export class LightningFS {
+  free(): void;
+}
+/**
+*/
 export class MemFS {
   free(): void;
 /**
 */
   constructor();
-/**
-* @param {any} jso
-* @returns {MemFS}
-*/
-  static from_js(jso: any): MemFS;
 /**
 * @param {string} path
 * @returns {Array<any>}
@@ -159,7 +159,7 @@ export class WASI {
   setStdinString(input: string): void;
 /**
 */
-  readonly fs: MemFS;
+  readonly fs: LightningFS;
 }
 /**
 * A struct representing an aborted instruction execution, with a message
@@ -176,7 +176,6 @@ export interface InitOutput {
   readonly __wbg_wasmerruntimeerror_free: (a: number) => void;
   readonly __wbg_memfs_free: (a: number) => void;
   readonly memfs_new: (a: number) => void;
-  readonly memfs_from_js: (a: number, b: number) => void;
   readonly memfs_readDir: (a: number, b: number, c: number, d: number) => void;
   readonly memfs_createDir: (a: number, b: number, c: number, d: number) => void;
   readonly memfs_removeDir: (a: number, b: number, c: number, d: number) => void;
@@ -208,11 +207,13 @@ export interface InitOutput {
   readonly wasi_getStderrString: (a: number, b: number) => void;
   readonly wasi_setStdinBuffer: (a: number, b: number, c: number, d: number) => void;
   readonly wasi_setStdinString: (a: number, b: number, c: number, d: number) => void;
+  readonly __wbg_lightningfs_free: (a: number) => void;
   readonly canonical_abi_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly canonical_abi_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h97530bad69cd8bd0: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number) => void;
