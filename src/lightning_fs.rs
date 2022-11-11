@@ -10,9 +10,10 @@ use wasmer_vfs::{
 #[wasm_bindgen(module = "@isomorphic-git/lightning-fs")]
 extern "C" {
     #[derive(Debug)]
+    #[wasm_bindgen( js_name = default)]
     type FS;
 
-    #[wasm_bindgen(constructor)]
+    #[wasm_bindgen(constructor, js_class = default)]
     fn new(name: String) -> FS;
     #[wasm_bindgen(method, getter)]
     fn promises(this: &FS) -> PromisifiedFS;
