@@ -50,8 +50,10 @@ pub struct LightningFS {
     inner: Arc<FS>,
 }
 
+#[wasm_bindgen]
 impl LightningFS {
-    pub fn new() -> Result<Self, JsValue> {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<LightningFS, JsValue> {
         Ok(LightningFS {
             inner: Arc::new(FS::new("lightning_fs".to_string())),
         })
