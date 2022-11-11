@@ -10,12 +10,12 @@
 // };
 
 import resolve from '@rollup/plugin-node-resolve';
-// import commonjs from '@rollup/plugin-commonjs';
-import babel from '@rollup/plugin-babel';
+import commonjs from '@rollup/plugin-commonjs';
+// import babel from '@rollup/plugin-babel';
 import { terser } from 'rollup-plugin-terser';
 import pkg from './package.json';
 import typescript from 'rollup-plugin-typescript2';
-import { wasm } from '@rollup/plugin-wasm';
+// import { wasm } from '@rollup/plugin-wasm';
 // import smartAsset from "rollup-plugin-smart-asset"
 import url from '@rollup/plugin-url';
 
@@ -83,6 +83,7 @@ const makeConfig = (env = 'development') => {
             }),
             // Uncomment the following 2 lines if your library has external dependencies
             resolve(), // teach Rollup how to find external modules
+            commonjs(),
             typescript({
                 rollupCommonJSResolveHack: false,
                 clean: true,          

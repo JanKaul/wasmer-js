@@ -6,11 +6,12 @@
       "noImplicitAny": true,
       "declaration": true,
       "module": "es6",
-      "target": "es5",
+      "target": "ES2017",
       "jsx": "react",
       "allowJs": true,
       "allowSyntheticDefaultImports": true,
-      "moduleResolution": "node"
+      "moduleResolution": "node",
+      "esModuleInterop": true
     }
   }
   
