@@ -55,18 +55,13 @@ pub struct LightningFS {
     inner: Arc<FS>,
 }
 
-#[wasm_bindgen]
 impl LightningFS {
-    #[wasm_bindgen(constructor)]
     pub fn new() -> Result<LightningFS, JsValue> {
         Ok(LightningFS {
             inner: Arc::new(FS::new("lightning_fs".to_string())),
         })
     }
 }
-
-unsafe impl Sync for FS {}
-unsafe impl Send for FS {}
 
 impl FileSystem for LightningFS {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
