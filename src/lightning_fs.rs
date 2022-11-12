@@ -241,11 +241,49 @@ impl FileOpener for LightningFileOpener {
                 .map_err(|_| FsError::UnknownError)?
                 .dyn_into()
                 .map_err(|_| FsError::UnknownError)?;
+        let stats = futures::executor::block_on(self.fs.promises().stat(path.clone()))
+            .map_err(|_| FsError::UnknownError)?;
+        let stats: Stats = stats.dyn_into().map_err(|_| FsError::UnknownError)?;
+        let metadata = if stats.isFile() {
+            Ok(Metadata {
+                ft: FileType {
+                    dir: false,
+                    file: true,
+                    symlink: false,
+                    char_device: false,
+                    block_device: false,
+                    socket: false,
+                    fifo: false,
+                },
+                accessed: 0,
+                created: 0,
+                modified: 0,
+                len: 0,
+            })
+        } else if stats.isDirectory() {
+            Ok(Metadata {
+                ft: FileType {
+                    dir: true,
+                    file: false,
+                    symlink: false,
+                    char_device: false,
+                    block_device: false,
+                    socket: false,
+                    fifo: false,
+                },
+                accessed: 0,
+                created: 0,
+                modified: 0,
+                len: 0,
+            })
+        } else {
+            Err(FsError::UnknownError)
+        }?;
 
         Ok(Box::new(LightningVirtualFile {
             path,
             fs: Arc::clone(&self.fs),
-            metadata: Metadata::default(),
+            metadata: metadata,
             data: Cursor::new(data.to_vec()),
         }))
     }
