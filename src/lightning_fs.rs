@@ -8,6 +8,7 @@ use wasmer_vfs::{
     VirtualFile,
 };
 
+// #[wasm_bindgen(module = "https://esm.sh/@isomorphic-git/lightning-fs")] // for tests
 #[wasm_bindgen(module = "@isomorphic-git/lightning-fs")]
 extern "C" {
     #[derive(Debug)]
