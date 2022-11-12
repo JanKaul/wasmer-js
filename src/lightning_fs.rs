@@ -8,6 +8,8 @@ use wasmer_vfs::{
     VirtualFile,
 };
 
+static FS_NAME: &str = "lightningFS";
+
 // #[wasm_bindgen(module = "https://esm.sh/@isomorphic-git/lightning-fs")] // for tests
 #[wasm_bindgen(module = "@isomorphic-git/lightning-fs")]
 extern "C" {
@@ -49,24 +51,32 @@ extern "C" {
     async fn stat(this: &PromisifiedFS, filepath: String) -> Result<JsValue, JsValue>;
 }
 
+fn get_fs() -> Result<FS, FsError> {
+    let global = js_sys::global();
+    let fs = js_sys::Reflect::get(&global, &JsValue::from_str(FS_NAME))
+        .map_err(|_| FsError::UnknownError)?;
+    let fs: FS = fs.dyn_into().map_err(|_| FsError::UnknownError)?;
+    Ok(fs)
+}
+
 #[wasm_bindgen]
 #[derive(Debug, Clone)]
-pub struct LightningFS {
-    inner: Arc<FS>,
-}
+pub struct LightningFS;
 
 impl LightningFS {
     pub fn new() -> Result<LightningFS, JsValue> {
-        Ok(LightningFS {
-            inner: Arc::new(FS::new("lightning_fs".to_string())),
-        })
+        let global = js_sys::global();
+        let fs = FS::new(FS_NAME.to_string());
+        js_sys::Reflect::set(&global, &JsValue::from_str(FS_NAME), &fs)?;
+        Ok(LightningFS)
     }
 }
 
 impl FileSystem for LightningFS {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
+        let fs = get_fs()?;
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let result = futures::executor::block_on(self.inner.promises().readdir(path.clone()))
+        let result = futures::executor::block_on(fs.promises().readdir(path.clone()))
             .map_err(|_| FsError::UnknownError)?;
         let array: js_sys::Array = result.dyn_into().map_err(|_| FsError::UnknownError)?;
         Ok(ReadDir::new(
@@ -75,10 +85,9 @@ impl FileSystem for LightningFS {
                 .map(|x| {
                     let name: js_sys::JsString = x.dyn_into().map_err(|_| FsError::UnknownError)?;
                     let name: String = format!("{}", name).into();
-                    let stats = futures::executor::block_on(
-                        self.inner.promises().stat(path.clone() + "/" + &name),
-                    )
-                    .map_err(|_| FsError::UnknownError)?;
+                    let stats =
+                        futures::executor::block_on(fs.promises().stat(path.clone() + "/" + &name))
+                            .map_err(|_| FsError::UnknownError)?;
                     let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
                         .map_err(|_| FsError::UnknownError)?;
                     let file_type: js_sys::JsString =
@@ -93,32 +102,33 @@ impl FileSystem for LightningFS {
         ))
     }
     fn create_dir(&self, path: &Path) -> Result<(), FsError> {
+        let fs = get_fs()?;
         futures::executor::block_on(
-            self.inner
-                .promises()
+            fs.promises()
                 .mkdir(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
         )
         .map_err(|_| FsError::UnknownError)
     }
     fn remove_dir(&self, path: &Path) -> Result<(), FsError> {
+        let fs = get_fs()?;
         futures::executor::block_on(
-            self.inner
-                .promises()
+            fs.promises()
                 .rmdir(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
         )
         .map_err(|_| FsError::UnknownError)
     }
     fn rename(&self, from: &Path, to: &Path) -> Result<(), FsError> {
-        futures::executor::block_on(self.inner.promises().rename(
+        let fs = get_fs()?;
+        futures::executor::block_on(fs.promises().rename(
             from.to_str().ok_or(FsError::UnknownError)?.to_string(),
             to.to_str().ok_or(FsError::UnknownError)?.to_string(),
         ))
         .map_err(|_| FsError::UnknownError)
     }
     fn metadata(&self, path: &Path) -> Result<Metadata, FsError> {
+        let fs = get_fs()?;
         let stats = futures::executor::block_on(
-            self.inner
-                .promises()
+            fs.promises()
                 .stat(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
         )
         .map_err(|_| FsError::UnknownError)?;
@@ -133,23 +143,19 @@ impl FileSystem for LightningFS {
         unimplemented!()
     }
     fn remove_file(&self, path: &Path) -> Result<(), FsError> {
+        let fs = get_fs()?;
         futures::executor::block_on(
-            self.inner
-                .promises()
+            fs.promises()
                 .deleteFile(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
         )
         .map_err(|_| FsError::UnknownError)
     }
     fn new_open_options(&self) -> OpenOptions {
-        OpenOptions::new(Box::new(LightningFileOpener {
-            fs: Arc::clone(&self.inner),
-        }))
+        OpenOptions::new(Box::new(LightningFileOpener))
     }
 }
 
-pub struct LightningFileOpener {
-    fs: Arc<FS>,
-}
+pub struct LightningFileOpener;
 
 impl FileOpener for LightningFileOpener {
     fn open(
@@ -157,13 +163,14 @@ impl FileOpener for LightningFileOpener {
         path: &Path,
         conf: &wasmer_vfs::OpenOptionsConfig,
     ) -> wasmer_vfs::Result<Box<dyn VirtualFile + Send + Sync + 'static>> {
+        let fs = get_fs()?;
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
         let data: js_sys::Uint8Array =
-            futures::executor::block_on(self.fs.promises().readFile(path.clone()))
+            futures::executor::block_on(fs.promises().readFile(path.clone()))
                 .map_err(|_| FsError::UnknownError)?
                 .dyn_into()
                 .map_err(|_| FsError::UnknownError)?;
-        let stats = futures::executor::block_on(self.fs.promises().stat(path.clone()))
+        let stats = futures::executor::block_on(fs.promises().stat(path.clone()))
             .map_err(|_| FsError::UnknownError)?;
         let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
             .map_err(|_| FsError::UnknownError)?;
@@ -174,7 +181,6 @@ impl FileOpener for LightningFileOpener {
 
         Ok(Box::new(LightningVirtualFile {
             path,
-            fs: Arc::clone(&self.fs),
             metadata: metadata,
             data: Cursor::new(data.to_vec()),
         }))
@@ -222,7 +228,6 @@ fn get_metadata(file_type: &str) -> Result<Metadata, FsError> {
 #[derive(Debug)]
 pub struct LightningVirtualFile {
     path: String,
-    fs: Arc<FS>,
     metadata: Metadata,
     data: Cursor<Vec<u8>>,
 }
@@ -238,9 +243,11 @@ impl Write for LightningVirtualFile {
         self.data.write(buf)
     }
     fn flush(&mut self) -> std::io::Result<()> {
+        let fs = get_fs()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::ConnectionAborted, err))?;
         self.data.flush()?;
         let data = js_sys::Uint8Array::from(self.data.get_ref().as_ref());
-        futures::executor::block_on(self.fs.promises().writeFile(self.path.clone(), data)).map_err(
+        futures::executor::block_on(fs.promises().writeFile(self.path.clone(), data)).map_err(
             |err| std::io::Error::new(std::io::ErrorKind::ConnectionAborted, FsError::UnknownError),
         )
     }
