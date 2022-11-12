@@ -5,7 +5,7 @@ authors = ["Syrus Akbary <syrus@wasmer.io>"]
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib","rlib"]
 
 [dependencies]
 js-sys = "0.3.55"
@@ -18,6 +18,9 @@ wasm-bindgen-futures = "0.4.33"
 wasmer = { path = "../wasmer/lib/api", default-features = false, features = ["js", "std"] }
 wasmer-wasi = { path = "../wasmer/lib/wasi", default-features = false, features = ["js"] }
 wasmer-vfs = { path = "../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.33"
 
 [profile.release]
 lto = true
