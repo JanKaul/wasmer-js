@@ -46,17 +46,6 @@ extern "C" {
     ) -> Result<(), JsValue>;
     #[wasm_bindgen(method, catch)]
     async fn stat(this: &PromisifiedFS, filepath: String) -> Result<JsValue, JsValue>;
-
-    type Stats;
-
-    #[wasm_bindgen(method, getter, js_name = type)]
-    fn file_type(this: &Stats) -> String;
-    #[wasm_bindgen(method)]
-    fn isFile(this: &Stats) -> bool;
-    #[wasm_bindgen(method)]
-    fn isDirectory(this: &Stats) -> bool;
-    #[wasm_bindgen(method, getter)]
-    fn size(this: &Stats) -> i32;
 }
 
 #[wasm_bindgen]
@@ -94,48 +83,15 @@ impl FileSystem for LightningFS {
                         self.inner.promises().stat(path.clone() + "/" + &name),
                     )
                     .map_err(|_| FsError::UnknownError)?;
-                    let stats: Stats = stats.dyn_into().map_err(|_| FsError::UnknownError)?;
-                    if stats.isFile() {
-                        Ok(DirEntry {
-                            path: name.into(),
-                            metadata: Ok(Metadata {
-                                ft: FileType {
-                                    dir: false,
-                                    file: true,
-                                    symlink: false,
-                                    char_device: false,
-                                    block_device: false,
-                                    socket: false,
-                                    fifo: false,
-                                },
-                                accessed: 0,
-                                created: 0,
-                                modified: 0,
-                                len: 0,
-                            }),
-                        })
-                    } else if stats.isDirectory() {
-                        Ok(DirEntry {
-                            path: name.into(),
-                            metadata: Ok(Metadata {
-                                ft: FileType {
-                                    dir: true,
-                                    file: false,
-                                    symlink: false,
-                                    char_device: false,
-                                    block_device: false,
-                                    socket: false,
-                                    fifo: false,
-                                },
-                                accessed: 0,
-                                created: 0,
-                                modified: 0,
-                                len: 0,
-                            }),
-                        })
-                    } else {
-                        Err(FsError::UnknownError)
-                    }
+                    let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
+                        .map_err(|_| FsError::UnknownError)?;
+                    let file_type: js_sys::JsString =
+                        file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
+                    let file_type: String = format!("{}", file_type).into();
+                    Ok(DirEntry {
+                        path: name.into(),
+                        metadata: get_metadata(&file_type),
+                    })
                 })
                 .collect::<Result<_, FsError>>()?,
         ))
@@ -170,42 +126,12 @@ impl FileSystem for LightningFS {
                 .stat(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
         )
         .map_err(|_| FsError::UnknownError)?;
-        let stats: Stats = stats.dyn_into().map_err(|_| FsError::UnknownError)?;
-        if stats.isFile() {
-            Ok(Metadata {
-                ft: FileType {
-                    dir: false,
-                    file: true,
-                    symlink: false,
-                    char_device: false,
-                    block_device: false,
-                    socket: false,
-                    fifo: false,
-                },
-                accessed: 0,
-                created: 0,
-                modified: 0,
-                len: 0,
-            })
-        } else if stats.isDirectory() {
-            Ok(Metadata {
-                ft: FileType {
-                    dir: true,
-                    file: false,
-                    symlink: false,
-                    char_device: false,
-                    block_device: false,
-                    socket: false,
-                    fifo: false,
-                },
-                accessed: 0,
-                created: 0,
-                modified: 0,
-                len: 0,
-            })
-        } else {
-            Err(FsError::UnknownError)
-        }
+        let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
+            .map_err(|_| FsError::UnknownError)?;
+        let file_type: js_sys::JsString =
+            file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
+        let file_type: String = format!("{}", file_type).into();
+        get_metadata(&file_type)
     }
     fn symlink_metadata(&self, path: &Path) -> Result<Metadata, FsError> {
         unimplemented!()
@@ -243,42 +169,12 @@ impl FileOpener for LightningFileOpener {
                 .map_err(|_| FsError::UnknownError)?;
         let stats = futures::executor::block_on(self.fs.promises().stat(path.clone()))
             .map_err(|_| FsError::UnknownError)?;
-        let stats: Stats = stats.dyn_into().map_err(|_| FsError::UnknownError)?;
-        let metadata = if stats.isFile() {
-            Ok(Metadata {
-                ft: FileType {
-                    dir: false,
-                    file: true,
-                    symlink: false,
-                    char_device: false,
-                    block_device: false,
-                    socket: false,
-                    fifo: false,
-                },
-                accessed: 0,
-                created: 0,
-                modified: 0,
-                len: 0,
-            })
-        } else if stats.isDirectory() {
-            Ok(Metadata {
-                ft: FileType {
-                    dir: true,
-                    file: false,
-                    symlink: false,
-                    char_device: false,
-                    block_device: false,
-                    socket: false,
-                    fifo: false,
-                },
-                accessed: 0,
-                created: 0,
-                modified: 0,
-                len: 0,
-            })
-        } else {
-            Err(FsError::UnknownError)
-        }?;
+        let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
+            .map_err(|_| FsError::UnknownError)?;
+        let file_type: js_sys::JsString =
+            file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
+        let file_type: String = format!("{}", file_type).into();
+        let metadata = get_metadata(&file_type)?;
 
         Ok(Box::new(LightningVirtualFile {
             path,
@@ -286,6 +182,44 @@ impl FileOpener for LightningFileOpener {
             metadata: metadata,
             data: Cursor::new(data.to_vec()),
         }))
+    }
+}
+
+fn get_metadata(file_type: &str) -> Result<Metadata, FsError> {
+    if file_type == "file" {
+        Ok(Metadata {
+            ft: FileType {
+                dir: false,
+                file: true,
+                symlink: false,
+                char_device: false,
+                block_device: false,
+                socket: false,
+                fifo: false,
+            },
+            accessed: 0,
+            created: 0,
+            modified: 0,
+            len: 0,
+        })
+    } else if file_type == "dir" {
+        Ok(Metadata {
+            ft: FileType {
+                dir: true,
+                file: false,
+                symlink: false,
+                char_device: false,
+                block_device: false,
+                socket: false,
+                fifo: false,
+            },
+            accessed: 0,
+            created: 0,
+            modified: 0,
+            len: 0,
+        })
+    } else {
+        Err(FsError::UnknownError)
     }
 }
 
