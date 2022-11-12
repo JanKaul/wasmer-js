@@ -4,7 +4,8 @@ use std::sync::Arc;
 use std::{io::Cursor, path::Path};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasmer_vfs::{
-    DirEntry, FileOpener, FileSystem, FsError, Metadata, OpenOptions, ReadDir, VirtualFile,
+    DirEntry, FileOpener, FileSystem, FileType, FsError, Metadata, OpenOptions, ReadDir,
+    VirtualFile,
 };
 
 #[wasm_bindgen(module = "@isomorphic-git/lightning-fs")]
@@ -43,6 +44,19 @@ extern "C" {
         oldFilepath: String,
         newFilepath: String,
     ) -> Result<(), JsValue>;
+    #[wasm_bindgen(method, catch)]
+    async fn stat(this: &PromisifiedFS, filepath: String) -> Result<JsValue, JsValue>;
+
+    type Stats;
+
+    #[wasm_bindgen(method, getter, js_name = type)]
+    fn file_type(this: &Stats) -> String;
+    #[wasm_bindgen(method)]
+    fn isFile(this: &Stats) -> bool;
+    #[wasm_bindgen(method)]
+    fn isDirectory(this: &Stats) -> bool;
+    #[wasm_bindgen(method, getter)]
+    fn size(this: &Stats) -> i32;
 }
 
 #[wasm_bindgen]
@@ -66,22 +80,62 @@ unsafe impl Send for FS {}
 
 impl FileSystem for LightningFS {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
-        let result = futures::executor::block_on(
-            self.inner
-                .promises()
-                .readdir(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
-        )
-        .map_err(|_| FsError::UnknownError)?;
+        let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
+        let result = futures::executor::block_on(self.inner.promises().readdir(path.clone()))
+            .map_err(|_| FsError::UnknownError)?;
         let array: js_sys::Array = result.dyn_into().map_err(|_| FsError::UnknownError)?;
         Ok(ReadDir::new(
             array
                 .iter()
                 .map(|x| {
                     let name: js_sys::JsString = x.dyn_into().map_err(|_| FsError::UnknownError)?;
-                    Ok(DirEntry {
-                        path: format!("{}", name).into(),
-                        metadata: Ok(Metadata::default()),
-                    })
+                    let name: String = format!("{}", name).into();
+                    let stats = futures::executor::block_on(
+                        self.inner.promises().stat(path.clone() + "/" + &name),
+                    )
+                    .map_err(|_| FsError::UnknownError)?;
+                    let stats: Stats = stats.dyn_into().map_err(|_| FsError::UnknownError)?;
+                    if stats.isFile() {
+                        Ok(DirEntry {
+                            path: name.into(),
+                            metadata: Ok(Metadata {
+                                ft: FileType {
+                                    dir: false,
+                                    file: true,
+                                    symlink: false,
+                                    char_device: false,
+                                    block_device: false,
+                                    socket: false,
+                                    fifo: false,
+                                },
+                                accessed: 0,
+                                created: 0,
+                                modified: 0,
+                                len: 0,
+                            }),
+                        })
+                    } else if stats.isDirectory() {
+                        Ok(DirEntry {
+                            path: name.into(),
+                            metadata: Ok(Metadata {
+                                ft: FileType {
+                                    dir: true,
+                                    file: false,
+                                    symlink: false,
+                                    char_device: false,
+                                    block_device: false,
+                                    socket: false,
+                                    fifo: false,
+                                },
+                                accessed: 0,
+                                created: 0,
+                                modified: 0,
+                                len: 0,
+                            }),
+                        })
+                    } else {
+                        Err(FsError::UnknownError)
+                    }
                 })
                 .collect::<Result<_, FsError>>()?,
         ))
@@ -110,7 +164,48 @@ impl FileSystem for LightningFS {
         .map_err(|_| FsError::UnknownError)
     }
     fn metadata(&self, path: &Path) -> Result<Metadata, FsError> {
-        Ok(Metadata::default())
+        let stats = futures::executor::block_on(
+            self.inner
+                .promises()
+                .stat(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
+        )
+        .map_err(|_| FsError::UnknownError)?;
+        let stats: Stats = stats.dyn_into().map_err(|_| FsError::UnknownError)?;
+        if stats.isFile() {
+            Ok(Metadata {
+                ft: FileType {
+                    dir: false,
+                    file: true,
+                    symlink: false,
+                    char_device: false,
+                    block_device: false,
+                    socket: false,
+                    fifo: false,
+                },
+                accessed: 0,
+                created: 0,
+                modified: 0,
+                len: 0,
+            })
+        } else if stats.isDirectory() {
+            Ok(Metadata {
+                ft: FileType {
+                    dir: true,
+                    file: false,
+                    symlink: false,
+                    char_device: false,
+                    block_device: false,
+                    socket: false,
+                    fifo: false,
+                },
+                accessed: 0,
+                created: 0,
+                modified: 0,
+                len: 0,
+            })
+        } else {
+            Err(FsError::UnknownError)
+        }
     }
     fn symlink_metadata(&self, path: &Path) -> Result<Metadata, FsError> {
         unimplemented!()
