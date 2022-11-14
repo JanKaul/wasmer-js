@@ -15,12 +15,15 @@ wasm-bindgen = "0.2.73"
 # as wasmer is released
 futures = "0.3.25"
 wasm-bindgen-futures = "0.4.33"
+wasm-rs-async-executor = "0.9.0"
 wasmer = { path = "../wasmer/lib/api", default-features = false, features = ["js", "std"] }
 wasmer-wasi = { path = "../wasmer/lib/wasi", default-features = false, features = ["js"] }
 wasmer-vfs = { path = "../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.33"
+web-sys = { verison = "0.3.60", features = ["Window","console"] }
+
 
 [profile.release]
 lto = true

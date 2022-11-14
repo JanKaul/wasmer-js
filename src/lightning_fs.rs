@@ -1,8 +1,9 @@
-use std::fmt::Error;
+use futures::StreamExt;
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 use std::{io::Cursor, path::Path};
 use wasm_bindgen::{prelude::*, JsCast};
+use wasm_rs_async_executor::single_threaded;
 use wasmer_vfs::{
     DirEntry, FileOpener, FileSystem, FileType, FsError, Metadata, OpenOptions, ReadDir,
     VirtualFile,
@@ -10,8 +11,8 @@ use wasmer_vfs::{
 
 static FS_NAME: &str = "lightningFS";
 
-// #[wasm_bindgen(module = "https://esm.sh/@isomorphic-git/lightning-fs")] // for tests
-#[wasm_bindgen(module = "@isomorphic-git/lightning-fs")]
+#[wasm_bindgen(module = "https://esm.sh/@isomorphic-git/lightning-fs")] // for tests
+                                                                        // #[wasm_bindgen(module = "@isomorphic-git/lightning-fs")]
 extern "C" {
     #[derive(Debug)]
     #[wasm_bindgen( js_name = default)]
@@ -74,81 +75,109 @@ impl LightningFS {
 
 impl FileSystem for LightningFS {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
-        let fs = get_fs()?;
-        let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let result = futures::executor::block_on(fs.promises().readdir(path.clone()))
-            .map_err(|_| FsError::UnknownError)?;
-        let array: js_sys::Array = result.dyn_into().map_err(|_| FsError::UnknownError)?;
-        Ok(ReadDir::new(
-            array
-                .iter()
-                .map(|x| {
-                    let name: js_sys::JsString = x.dyn_into().map_err(|_| FsError::UnknownError)?;
-                    let name: String = format!("{}", name).into();
-                    let stats =
-                        futures::executor::block_on(fs.promises().stat(path.clone() + "/" + &name))
+        let path = Arc::new(path.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let handle = single_threaded::spawn(async move {
+            let result = get_fs()?
+                .promises()
+                .readdir(path.clone().as_ref().to_string())
+                .await
+                .map_err(|_| FsError::UnknownError)?;
+            let array: js_sys::Array = result.dyn_into().map_err(|_| FsError::UnknownError)?;
+            let data = futures::stream::iter(array.iter())
+                .fold(Ok::<Vec<DirEntry>, FsError>(Vec::new()), |acc, x| {
+                    let move_path = Arc::clone(&path);
+                    async move {
+                        let mut acc = acc?;
+                        let name: js_sys::JsString =
+                            x.dyn_into().map_err(|_| FsError::UnknownError)?;
+                        let name: String = format!("{}", name).into();
+                        let stats = get_fs()?
+                            .promises()
+                            .stat(move_path.clone().as_ref().to_string() + "/" + &name)
+                            .await
                             .map_err(|_| FsError::UnknownError)?;
-                    let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
-                        .map_err(|_| FsError::UnknownError)?;
-                    let file_type: js_sys::JsString =
-                        file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
-                    let file_type: String = format!("{}", file_type).into();
-                    Ok(DirEntry {
-                        path: name.into(),
-                        metadata: get_metadata(&file_type),
-                    })
+                        let file_type =
+                            js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
+                                .map_err(|_| FsError::UnknownError)?;
+                        let file_type: js_sys::JsString =
+                            file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
+                        let file_type: String = format!("{}", file_type).into();
+                        acc.push(DirEntry {
+                            path: name.into(),
+                            metadata: get_metadata(&file_type),
+                        });
+                        Ok(acc)
+                    }
                 })
-                .collect::<Result<_, FsError>>()?,
-        ))
+                .await?;
+            Ok(ReadDir::new(data))
+        });
+        single_threaded::block_on(async { handle.await }).unwrap()
     }
     fn create_dir(&self, path: &Path) -> Result<(), FsError> {
-        let fs = get_fs()?;
-        futures::executor::block_on(
-            fs.promises()
-                .mkdir(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
-        )
-        .map_err(|_| FsError::UnknownError)
+        let path = Arc::new(path.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let handle = single_threaded::spawn(async move {
+            get_fs().unwrap().promises().mkdir(path.to_string()).await
+        });
+        single_threaded::block_on(async { handle.await })
+            .unwrap()
+            .map_err(|_| FsError::UnknownError)
     }
     fn remove_dir(&self, path: &Path) -> Result<(), FsError> {
-        let fs = get_fs()?;
-        futures::executor::block_on(
-            fs.promises()
-                .rmdir(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
-        )
-        .map_err(|_| FsError::UnknownError)
+        let path = Arc::new(path.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let handle = single_threaded::spawn(async move {
+            get_fs().unwrap().promises().rmdir(path.to_string()).await
+        });
+        single_threaded::block_on(async { handle.await })
+            .unwrap()
+            .map_err(|_| FsError::UnknownError)
     }
     fn rename(&self, from: &Path, to: &Path) -> Result<(), FsError> {
-        let fs = get_fs()?;
-        futures::executor::block_on(fs.promises().rename(
-            from.to_str().ok_or(FsError::UnknownError)?.to_string(),
-            to.to_str().ok_or(FsError::UnknownError)?.to_string(),
-        ))
-        .map_err(|_| FsError::UnknownError)
+        let from = Arc::new(from.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let to = Arc::new(to.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let handle = single_threaded::spawn(async move {
+            get_fs()
+                .unwrap()
+                .promises()
+                .rename(from.to_string(), to.to_string())
+                .await
+        });
+        single_threaded::block_on(async { handle.await })
+            .unwrap()
+            .map_err(|_| FsError::UnknownError)
     }
     fn metadata(&self, path: &Path) -> Result<Metadata, FsError> {
-        let fs = get_fs()?;
-        let stats = futures::executor::block_on(
-            fs.promises()
-                .stat(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
-        )
-        .map_err(|_| FsError::UnknownError)?;
-        let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
-            .map_err(|_| FsError::UnknownError)?;
-        let file_type: js_sys::JsString =
-            file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
-        let file_type: String = format!("{}", file_type).into();
-        get_metadata(&file_type)
+        let path = Arc::new(path.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let handle = single_threaded::spawn(async move {
+            let stats = get_fs()?
+                .promises()
+                .stat(path.to_string())
+                .await
+                .map_err(|_| FsError::UnknownError)?;
+            let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
+                .map_err(|_| FsError::UnknownError)?;
+            let file_type: js_sys::JsString =
+                file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
+            let file_type: String = format!("{}", file_type).into();
+            get_metadata(&file_type)
+        });
+        single_threaded::block_on(async { handle.await }).unwrap()
     }
-    fn symlink_metadata(&self, path: &Path) -> Result<Metadata, FsError> {
+    fn symlink_metadata(&self, _path: &Path) -> Result<Metadata, FsError> {
         unimplemented!()
     }
     fn remove_file(&self, path: &Path) -> Result<(), FsError> {
-        let fs = get_fs()?;
-        futures::executor::block_on(
-            fs.promises()
-                .deleteFile(path.to_str().ok_or(FsError::UnknownError)?.to_string()),
-        )
-        .map_err(|_| FsError::UnknownError)
+        let path = Arc::new(path.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let handle = single_threaded::spawn(async move {
+            get_fs()
+                .unwrap()
+                .promises()
+                .deleteFile(path.to_string())
+                .await
+        });
+        single_threaded::block_on(async { handle.await })
+            .unwrap()
+            .map_err(|_| FsError::UnknownError)
     }
     fn new_open_options(&self) -> OpenOptions {
         OpenOptions::new(Box::new(LightningFileOpener))
@@ -161,29 +190,38 @@ impl FileOpener for LightningFileOpener {
     fn open(
         &mut self,
         path: &Path,
-        conf: &wasmer_vfs::OpenOptionsConfig,
+        _conf: &wasmer_vfs::OpenOptionsConfig,
     ) -> wasmer_vfs::Result<Box<dyn VirtualFile + Send + Sync + 'static>> {
-        let fs = get_fs()?;
-        let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let data: js_sys::Uint8Array =
-            futures::executor::block_on(fs.promises().readFile(path.clone()))
+        let path = Arc::new(path.to_str().ok_or(FsError::UnknownError)?.to_string());
+        let handle = single_threaded::spawn(async move {
+            let data: js_sys::Uint8Array = get_fs()?
+                .promises()
+                .readFile(path.to_string())
+                .await
                 .map_err(|_| FsError::UnknownError)?
                 .dyn_into()
                 .map_err(|_| FsError::UnknownError)?;
-        let stats = futures::executor::block_on(fs.promises().stat(path.clone()))
-            .map_err(|_| FsError::UnknownError)?;
-        let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
-            .map_err(|_| FsError::UnknownError)?;
-        let file_type: js_sys::JsString =
-            file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
-        let file_type: String = format!("{}", file_type).into();
-        let metadata = get_metadata(&file_type)?;
+            let stats = get_fs()?
+                .promises()
+                .stat(path.to_string())
+                .await
+                .map_err(|_| FsError::UnknownError)?;
+            let file_type = js_sys::Reflect::get(&stats, &JsValue::from_str("file_type"))
+                .map_err(|_| FsError::UnknownError)?;
+            let file_type: js_sys::JsString =
+                file_type.dyn_into().map_err(|_| FsError::UnknownError)?;
+            let file_type: String = format!("{}", file_type).into();
+            let metadata = get_metadata(&file_type)?;
 
-        Ok(Box::new(LightningVirtualFile {
-            path,
-            metadata: metadata,
-            data: Cursor::new(data.to_vec()),
-        }))
+            Ok::<_, FsError>(LightningVirtualFile {
+                path: path.to_string(),
+                metadata: metadata,
+                data: Cursor::new(data.to_vec()),
+            })
+        });
+        Ok(Box::new(
+            single_threaded::block_on(async { handle.await }).unwrap()?,
+        ))
     }
 }
 
@@ -247,9 +285,19 @@ impl Write for LightningVirtualFile {
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::ConnectionAborted, err))?;
         self.data.flush()?;
         let data = js_sys::Uint8Array::from(self.data.get_ref().as_ref());
-        futures::executor::block_on(fs.promises().writeFile(self.path.clone(), data)).map_err(
-            |err| std::io::Error::new(std::io::ErrorKind::ConnectionAborted, FsError::UnknownError),
-        )
+        let temp_path = self.path.clone();
+        let handle = single_threaded::spawn(async move {
+            get_fs()
+                .unwrap()
+                .promises()
+                .writeFile(temp_path, data)
+                .await
+        });
+        single_threaded::block_on(async { handle.await })
+            .unwrap()
+            .map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::ConnectionAborted, FsError::UnknownError)
+            })
     }
 }
 
@@ -276,7 +324,7 @@ impl VirtualFile for LightningVirtualFile {
         self.metadata.len
     }
 
-    fn set_len(&mut self, new_size: u64) -> Result<(), FsError> {
+    fn set_len(&mut self, _new_size: u64) -> Result<(), FsError> {
         Err(FsError::UnknownError)
     }
 
