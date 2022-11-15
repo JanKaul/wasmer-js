@@ -55,9 +55,6 @@ export class JSVirtualFile {
 */
 export class LightningFS {
   free(): void;
-/**
-*/
-  constructor();
 }
 /**
 */
@@ -197,8 +194,6 @@ export interface InitOutput {
   readonly jsvirtualfile_writeString: (a: number, b: number, c: number, d: number) => void;
   readonly jsvirtualfile_flush: (a: number, b: number) => void;
   readonly jsvirtualfile_seek: (a: number, b: number, c: number) => void;
-  readonly __wbg_lightningfs_free: (a: number) => void;
-  readonly lightningfs_new: (a: number) => void;
   readonly __wbg_wasi_free: (a: number) => void;
   readonly wasi_new: (a: number, b: number) => void;
   readonly wasi_fs: (a: number, b: number) => void;
@@ -211,6 +206,7 @@ export interface InitOutput {
   readonly wasi_getStderrString: (a: number, b: number) => void;
   readonly wasi_setStdinBuffer: (a: number, b: number, c: number, d: number) => void;
   readonly wasi_setStdinString: (a: number, b: number, c: number, d: number) => void;
+  readonly __wbg_lightningfs_free: (a: number) => void;
   readonly canonical_abi_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly canonical_abi_free: (a: number, b: number, c: number) => void;
   readonly __wbg_wasmerruntimeerror_free: (a: number) => void;

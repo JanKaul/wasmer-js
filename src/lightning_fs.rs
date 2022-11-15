@@ -281,8 +281,6 @@ impl Write for LightningVirtualFile {
         self.data.write(buf)
     }
     fn flush(&mut self) -> std::io::Result<()> {
-        let fs = get_fs()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::ConnectionAborted, err))?;
         self.data.flush()?;
         let data = js_sys::Uint8Array::from(self.data.get_ref().as_ref());
         let temp_path = self.path.clone();

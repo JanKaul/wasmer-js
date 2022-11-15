@@ -36,6 +36,7 @@ export function wasi_getStderrBuffer(a: number, b: number): void;
 export function wasi_getStderrString(a: number, b: number): void;
 export function wasi_setStdinBuffer(a: number, b: number, c: number, d: number): void;
 export function wasi_setStdinString(a: number, b: number, c: number, d: number): void;
+export function __wbg_lightningfs_free(a: number): void;
 export function canonical_abi_realloc(a: number, b: number, c: number, d: number): number;
 export function canonical_abi_free(a: number, b: number, c: number): void;
 export function __wbindgen_malloc(a: number): number;
