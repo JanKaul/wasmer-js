@@ -8,18 +8,17 @@ edition = "2021"
 crate-type = ["cdylib","rlib"]
 
 [dependencies]
-js-sys = "0.3.55"
-wasm-bindgen = "0.2.73"
-futures-lite = "1.12.0"
-wasm-bindgen-futures = "0.4.33"
-wasm-mt = "0.1.2"
+js-sys = "0.3.60"
+wasm-bindgen = "0.2.83"
 wasmer = { path = "../wasmer/lib/api", default-features = false, features = ["js", "std"] }
 wasmer-wasi = { path = "../wasmer/lib/wasi", default-features = false, features = ["js"] }
 wasmer-vfs = { path = "../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
+console_error_panic_hook = "0.1.7"
+web-sys = { version = "0.3.60", features = ["Window","console"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.33"
-web-sys = { verison = "0.3.60", features = ["Window","console"] }
+wasm-bindgen-futures = "0.4.33"
 
 
 [profile.release]

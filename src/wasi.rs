@@ -1,4 +1,4 @@
-use crate::lightning_fs::LightningFS;
+use crate::browser_fs::BrowserFS;
 use std::io::{Read, Write};
 use js_sys::{Object, Reflect};
 use wasm_bindgen::prelude::*;
@@ -24,6 +24,7 @@ pub struct WASI {
 impl WASI {
     #[wasm_bindgen(constructor)]
     pub fn new(config: JsValue) -> Result<WASI, JsValue> {
+        console_error_panic_hook::set_once();
         let args: Vec<String> = {
             let args = js_sys::Reflect::get(&config, &"args".into())?;
             if args.is_undefined() {
@@ -87,7 +88,7 @@ impl WASI {
         let fs = {
             let fs = js_sys::Reflect::get(&config, &"fs".into())?;
             if fs.is_undefined() {
-                LightningFS::new()?
+                BrowserFS::new()?
             } else {
                 MemFS::from_js(fs)?
             }
@@ -122,12 +123,12 @@ impl WASI {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn fs(&mut self) -> Result<LightningFS, JsValue> {
+    pub fn fs(&mut self) -> Result<BrowserFS, JsValue> {
         let mut state = self.wasi_env.data_mut(&mut self.store).state();
         let mem_fs = state
             .fs
             .fs_backing
-            .downcast_ref::<LightningFS>()
+            .downcast_ref::<BrowserFS>()
             .ok_or_else(|| js_sys::Error::new(&format!("Failed to downcast to MemFS")))?;
         Ok(mem_fs.clone())
     }

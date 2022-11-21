@@ -17,15 +17,20 @@ async fn pass() {
 
     let mut wasi = WASI::new(js_sys::Object::new().into()).expect("Failed to create wasi object");
 
-    let bytes = JsFuture::from(window.fetch_with_str("https://deno.land/x/wasm/tests/demo.wasm"))
-        .await
-        .expect("Failed to fetch demo.wasm");
+    let bytes = window.fetch_with_str("https://deno.land/x/wasm/tests/demo.wasm");
 
-    let module = JsFuture::from(WebAssembly::compile(&bytes))
+    let module = JsFuture::from(WebAssembly::compile_streaming(&bytes))
         .await
         .expect("Failed to compile wasm module.");
 
-    let instance = wasi
-        .instantiate(module, None)
+    wasi.instantiate(module, None)
         .expect("Failed to instaniate Webassembly module.");
+
+    wasi.start(None).expect("Failed to start wasi module");
+
+    let stdout = wasi
+        .get_stdout_string()
+        .expect("Failed to get stdout string.");
+
+    web_sys::console::log_1(&JsValue::from_str(&stdout));
 }

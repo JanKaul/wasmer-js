@@ -2,6 +2,11 @@
 /* eslint-disable */
 /**
 */
+export class BrowserFS {
+  free(): void;
+}
+/**
+*/
 export class JSVirtualFile {
   free(): void;
 /**
@@ -50,11 +55,6 @@ export class JSVirtualFile {
 * @returns {number}
 */
   seek(position: number): number;
-}
-/**
-*/
-export class LightningFS {
-  free(): void;
 }
 /**
 */
@@ -159,7 +159,7 @@ export class WASI {
   setStdinString(input: string): void;
 /**
 */
-  readonly fs: LightningFS;
+  readonly fs: BrowserFS;
 }
 /**
 * A struct representing an aborted instruction execution, with a message
