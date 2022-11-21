@@ -8,16 +8,15 @@ use wasmer_vfs::{
 
 static FS_NAME: &str = "browserFS";
 
-#[wasm_bindgen(module = "https://esm.sh/browserfs")] // for tests
-                                                     // #[wasm_bindgen(module = "browserfs")]
+// #[wasm_bindgen(module = "https://esm.sh/browserfs")] // for tests
+#[wasm_bindgen(module = "browserfs")]
 extern "C" {
     #[derive(Debug)]
-    #[wasm_bindgen(js_name = LocalStorage, js_namespace = ["default", "FileSystem"])]
+    #[wasm_bindgen(js_name = LocalStorage, js_namespace = ["FileSystem"])]
     type FS;
-    #[wasm_bindgen(constructor, js_namespace = ["default", "FileSystem"], js_class = LocalStorage)]
+    #[wasm_bindgen(constructor, js_namespace = ["FileSystem"], js_class = LocalStorage)]
     fn new() -> FS;
 
-    #[wasm_bindgen(js_namespace = default)]
     fn initialize(fs: FS) -> FS;
 
     #[wasm_bindgen(method, js_name = mkdirSync)]
