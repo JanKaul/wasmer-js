@@ -90,7 +90,7 @@ impl WASI {
             if fs.is_undefined() {
                 BrowserFS::new()?
             } else {
-                MemFS::from_js(fs)?
+                BrowserFS::new()?
             }
         };
         let mut store = Store::default();

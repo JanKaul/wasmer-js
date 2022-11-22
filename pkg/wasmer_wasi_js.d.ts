@@ -64,6 +64,11 @@ export class MemFS {
 */
   constructor();
 /**
+* @param {any} jso
+* @returns {MemFS}
+*/
+  static from_js(jso: any): MemFS;
+/**
 * @param {string} path
 * @returns {Array<any>}
 */
