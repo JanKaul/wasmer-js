@@ -6,18 +6,15 @@ use wasmer_vfs::{
     VirtualFile,
 };
 
-static FS_NAME: &str = "browserFS";
+static FS_NAME: &str = "indexedFS";
 
 // #[wasm_bindgen(module = "https://esm.sh/browserfs")] // for tests
-#[wasm_bindgen(module = "browserfs")]
+#[wasm_bindgen(module = "sync-idb-fs")]
 extern "C" {
     #[derive(Debug)]
-    #[wasm_bindgen(js_name = LocalStorage, js_namespace = ["FileSystem"])]
     type FS;
-    #[wasm_bindgen(constructor, js_namespace = ["FileSystem"], js_class = LocalStorage)]
+    #[wasm_bindgen(constructor)]
     fn new() -> FS;
-
-    fn initialize(fs: FS) -> FS;
 
     #[wasm_bindgen(method, js_name = mkdirSync)]
     fn mkdir(this: &FS, filepath: String);
@@ -52,21 +49,19 @@ fn get_fs() -> Result<FS, FsError> {
     fs.dyn_into().map_err(|_| FsError::UnknownError)
 }
 
-#[wasm_bindgen]
 #[derive(Debug, Clone)]
-pub struct BrowserFS;
+pub struct IndexedFS;
 
-impl BrowserFS {
-    pub fn new() -> Result<BrowserFS, JsValue> {
+impl IndexedFS {
+    pub fn new() -> Result<IndexedFS, JsValue> {
         let global = js_sys::global();
         let fs = FS::new();
-        let initialized = initialize(fs);
-        js_sys::Reflect::set(&global, &JsValue::from_str(&FS_NAME), &initialized)?;
-        Ok(BrowserFS)
+        js_sys::Reflect::set(&global, &JsValue::from_str(&FS_NAME), &fs)?;
+        Ok(IndexedFS)
     }
 }
 
-impl FileSystem for BrowserFS {
+impl FileSystem for IndexedFS {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
         let array = get_fs()?.readdir(path.clone());

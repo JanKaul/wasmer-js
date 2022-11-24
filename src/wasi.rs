@@ -1,6 +1,6 @@
-use crate::browser_fs::BrowserFS;
-use std::io::{Read, Write};
+use crate::indexed_fs::IndexedFS;
 use js_sys::{Object, Reflect};
+use std::io::{Read, Write};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasmer::{Imports, Instance, Module, Store};
@@ -88,9 +88,9 @@ impl WASI {
         let fs = {
             let fs = js_sys::Reflect::get(&config, &"fs".into())?;
             if fs.is_undefined() {
-                BrowserFS::new()?
+                IndexedFS::new()?
             } else {
-                BrowserFS::new()?
+                IndexedFS::new()?
             }
         };
         let mut store = Store::default();
@@ -122,16 +122,16 @@ impl WASI {
         })
     }
 
-    #[wasm_bindgen(getter)]
-    pub fn fs(&mut self) -> Result<BrowserFS, JsValue> {
-        let mut state = self.wasi_env.data_mut(&mut self.store).state();
-        let mem_fs = state
-            .fs
-            .fs_backing
-            .downcast_ref::<BrowserFS>()
-            .ok_or_else(|| js_sys::Error::new(&format!("Failed to downcast to MemFS")))?;
-        Ok(mem_fs.clone())
-    }
+    // #[wasm_bindgen(getter)]
+    // pub fn fs(&mut self) -> Result<IndexedFS, JsValue> {
+    //     let mut state = self.wasi_env.data_mut(&mut self.store).state();
+    //     let mem_fs = state
+    //         .fs
+    //         .fs_backing
+    //         .downcast_ref::<IndexedFS>()
+    //         .ok_or_else(|| js_sys::Error::new(&format!("Failed to downcast to MemFS")))?;
+    //     Ok(mem_fs.clone())
+    // }
 
     #[wasm_bindgen(js_name = getImports)]
     pub fn get_imports(
@@ -331,11 +331,12 @@ impl WASI {
 
 // helper function for passing Rust objects through JS
 // https://github.com/rustwasm/wasm-bindgen/issues/2231#issuecomment-1147260391
-pub fn generic_of_jsval<T: RefFromWasmAbi<Abi=u32>>(js: JsValue, classname: &str) -> Result<T::Anchor, JsValue> {
+pub fn generic_of_jsval<T: RefFromWasmAbi<Abi = u32>>(
+    js: JsValue,
+    classname: &str,
+) -> Result<T::Anchor, JsValue> {
     if !js.is_object() {
-        return Err(js_sys::Error::new(
-            &format!("expected object, got {:?}", js).as_str(),
-        ).into());
+        return Err(js_sys::Error::new(&format!("expected object, got {:?}", js).as_str()).into());
     }
 
     let ctor_name = Object::get_prototype_of(&js).constructor().name();
@@ -345,8 +346,9 @@ pub fn generic_of_jsval<T: RefFromWasmAbi<Abi=u32>>(js: JsValue, classname: &str
         let foo = unsafe { T::ref_from_abi(ptr_u32) };
         Ok(foo)
     } else {
-        Err(js_sys::Error::new(
-          &format!("expected '{}', got '{}'", classname, ctor_name).as_str()
-        ).into())
+        Err(
+            js_sys::Error::new(&format!("expected '{}', got '{}'", classname, ctor_name).as_str())
+                .into(),
+        )
     }
 }

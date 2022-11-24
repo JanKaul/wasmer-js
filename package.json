@@ -59,6 +59,6 @@
   },
   "browserslist": "> 0.5%, last 2 versions, Firefox ESR, not dead",
   "dependencies": {
-    "browserfs": "^1.4.3"
+    "sync-idb-fs": "^0.1.5"
   }
 }

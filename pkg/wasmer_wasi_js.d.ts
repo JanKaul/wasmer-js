@@ -2,11 +2,6 @@
 /* eslint-disable */
 /**
 */
-export class BrowserFS {
-  free(): void;
-}
-/**
-*/
 export class JSVirtualFile {
   free(): void;
 /**
@@ -162,9 +157,6 @@ export class WASI {
 * @param {string} input
 */
   setStdinString(input: string): void;
-/**
-*/
-  readonly fs: BrowserFS;
 }
 /**
 * A struct representing an aborted instruction execution, with a message
