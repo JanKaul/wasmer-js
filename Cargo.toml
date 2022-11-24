@@ -17,6 +17,7 @@ wasmer = { version = "3.0.2", default-features = false, features = ["js", "std"]
 wasmer-wasi = { version = "3.0.2", default-features = false, features = ["js"] }
 wasmer-vfs = { version = "3.0.2", default-features = false, features = ["mem-fs"] }
 wasm-bindgen-downcast = "0.1.1"
+console_error_panic_hook = "0.1.7"
 
 [profile.release]
 lto = true

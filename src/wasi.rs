@@ -45,6 +45,7 @@ pub struct WASI {
 impl WASI {
     #[wasm_bindgen(constructor)]
     pub fn new(config: WasiConfig) -> Result<WASI, JsValue> {
+        console_error_panic_hook::set_once();
         let args: Vec<String> = {
             let args = js_sys::Reflect::get(&config, &"args".into())?;
             if args.is_undefined() {

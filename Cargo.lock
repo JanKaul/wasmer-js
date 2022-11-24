@@ -159,6 +159,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -166,6 +167,15 @@ checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
  "termcolor",
  "unicode-width",
+=======
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if 1.0.0",
+ "wasm-bindgen",
+>>>>>>> 3c21ef5 (add lstat)
 ]
 
 [[package]]
@@ -1288,6 +1298,7 @@ dependencies = [
 name = "wasmer-wasi-js"
 version = "1.2.2"
 dependencies = [
+ "console_error_panic_hook",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-downcast",

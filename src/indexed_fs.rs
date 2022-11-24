@@ -31,6 +31,8 @@ extern "C" {
     fn rename(this: &FS, oldFilepath: String, newFilepath: String);
     #[wasm_bindgen(method, js_name = statSync)]
     fn stat(this: &FS, filepath: String) -> StatsLike;
+    #[wasm_bindgen(method, js_name = statSync)]
+    fn lstat(this: &FS, filepath: String) -> StatsLike;
 
     type StatsLike;
 
@@ -99,8 +101,10 @@ impl FileSystem for IndexedFS {
         let stats = get_fs()?.stat(path.to_string());
         get_metadata(&stats.file_type())
     }
-    fn symlink_metadata(&self, _path: &Path) -> Result<Metadata, FsError> {
-        unimplemented!()
+    fn symlink_metadata(&self, path: &Path) -> Result<Metadata, FsError> {
+        let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
+        let stats = get_fs()?.lstat(path.to_string());
+        get_metadata(&stats.file_type())
     }
     fn remove_file(&self, path: &Path) -> Result<(), FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
@@ -121,8 +125,7 @@ impl FileOpener for IndexedFileOpener {
     ) -> wasmer_vfs::Result<Box<dyn VirtualFile + Send + Sync + 'static>> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
         let data: js_sys::Uint8Array = get_fs()?.readFile(path.to_string());
-        let stats = get_fs()?.stat(path.to_string());
-        let metadata = get_metadata(&stats.file_type())?;
+        let metadata = get_metadata("file")?;
         Ok(Box::new(IndexedVirtualFile {
             path: path.to_string(),
             metadata: metadata,
@@ -154,6 +157,22 @@ fn get_metadata(file_type: &str) -> Result<Metadata, FsError> {
                 dir: true,
                 file: false,
                 symlink: false,
+                char_device: false,
+                block_device: false,
+                socket: false,
+                fifo: false,
+            },
+            accessed: 0,
+            created: 0,
+            modified: 0,
+            len: 0,
+        })
+    } else if file_type == "symlink" {
+        Ok(Metadata {
+            ft: FileType {
+                dir: false,
+                file: false,
+                symlink: true,
                 char_device: false,
                 block_device: false,
                 socket: false,
