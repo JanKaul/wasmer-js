@@ -52,5 +52,8 @@
     "tslib": "^2.3.1",
     "typescript": "^4.5.2"
   },
+  "dependencies": {
+    "sync-idb-fs": "^0.1.6"
+  },
   "browserslist": "> 0.5%, last 2 versions, Firefox ESR, not dead"
 }

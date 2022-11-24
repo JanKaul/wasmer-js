@@ -1,5 +1,7 @@
 use crate::fs::MemFS;
 
+use crate::indexed_fs::FS;
+use crate::IndexedFS;
 use std::io::{Read, Write};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -103,12 +105,14 @@ impl WASI {
                 }
             };
 
-        let fs = {
+        let fs: Box<dyn wasmer_vfs::FileSystem> = {
             let fs = js_sys::Reflect::get(&config, &"fs".into())?;
             if fs.is_undefined() {
-                MemFS::new()?
+                Box::new(MemFS::new()?)
+            } else if js_sys::Reflect::has(&fs, &"promises".into())? {
+                Box::new(IndexedFS::new(fs.unchecked_into())?)
             } else {
-                MemFS::from_js(fs)?
+                Box::new(MemFS::from_js(fs)?)
             }
         };
         let mut store = Store::default();
@@ -118,7 +122,7 @@ impl WASI {
         let wasi_env = WasiState::new(args.get(0).unwrap_or(&"".to_string()))
             .args(if !args.is_empty() { &args[1..] } else { &[] })
             .envs(env)
-            .set_fs(Box::new(fs))
+            .set_fs(fs)
             .stdout(Box::new(stdout.clone()))
             .stdin(Box::new(stdin.clone()))
             .stderr(Box::new(stderr.clone()))
@@ -140,16 +144,16 @@ impl WASI {
         })
     }
 
-    #[wasm_bindgen(getter)]
-    pub fn fs(&mut self) -> Result<MemFS, JsValue> {
-        let state = self.wasi_env.data_mut(&mut self.store).state();
-        let mem_fs = state
-            .fs
-            .fs_backing
-            .downcast_ref::<MemFS>()
-            .ok_or_else(|| js_sys::Error::new("Failed to downcast to MemFS"))?;
-        Ok(mem_fs.clone())
-    }
+    // #[wasm_bindgen(getter)]
+    // pub fn fs(&mut self) -> Result<MemFS, JsValue> {
+    //     let state = self.wasi_env.data_mut(&mut self.store).state();
+    //     let mem_fs = state
+    //         .fs
+    //         .fs_backing
+    //         .downcast_ref::<MemFS>()
+    //         .ok_or_else(|| js_sys::Error::new("Failed to downcast to MemFS"))?;
+    //     Ok(mem_fs.clone())
+    // }
 
     #[wasm_bindgen(js_name = getImports)]
     pub fn get_imports(
