@@ -1,6 +1,5 @@
 use crate::fs::MemFS;
 
-use crate::indexed_fs::FS;
 use crate::IndexedFS;
 use std::io::{Read, Write};
 use wasm_bindgen::prelude::*;

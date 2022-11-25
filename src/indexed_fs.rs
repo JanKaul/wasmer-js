@@ -1,5 +1,5 @@
-use std::io::{Read, Seek, Write};
-use std::{io::Cursor, path::Path};
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::path::Path;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasmer_vfs::{
     DirEntry, FileOpener, FileSystem, FileType, FsError, Metadata, OpenOptions, ReadDir,
@@ -65,7 +65,7 @@ impl IndexedFS {
 impl FileSystem for IndexedFS {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let array = get_fs()?.readdir(path.clone()).map_err(catchFsError)?;
+        let array = get_fs()?.readdir(path.clone()).map_err(catch_fs_error)?;
         let data = array
             .iter()
             .map(|x| {
@@ -75,7 +75,7 @@ impl FileSystem for IndexedFS {
                     let name: String = format!("{}", name).into();
                     let stats = get_fs()?
                         .stat(move_path.clone() + "/" + &name)
-                        .map_err(catchFsError)?;
+                        .map_err(catch_fs_error)?;
                     Ok(DirEntry {
                         path: name.into(),
                         metadata: get_metadata(&stats.file_type()),
@@ -87,39 +87,41 @@ impl FileSystem for IndexedFS {
     }
     fn create_dir(&self, path: &Path) -> Result<(), FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        get_fs()?.mkdir(path.to_string()).map_err(catchFsError)
+        get_fs()?.mkdir(path.to_string()).map_err(catch_fs_error)
     }
     fn remove_dir(&self, path: &Path) -> Result<(), FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        get_fs()?.rmdir(path.to_string()).map_err(catchFsError)
+        get_fs()?.rmdir(path.to_string()).map_err(catch_fs_error)
     }
     fn rename(&self, from: &Path, to: &Path) -> Result<(), FsError> {
         let from = from.to_str().ok_or(FsError::UnknownError)?.to_string();
         let to = to.to_str().ok_or(FsError::UnknownError)?.to_string();
         get_fs()?
             .rename(from.to_string(), to.to_string())
-            .map_err(catchFsError)
+            .map_err(catch_fs_error)
     }
     fn metadata(&self, path: &Path) -> Result<Metadata, FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let stats = get_fs()?.stat(path.to_string()).map_err(catchFsError)?;
+        let stats = get_fs()?.stat(path.to_string()).map_err(catch_fs_error)?;
         get_metadata(&stats.file_type())
     }
     fn symlink_metadata(&self, path: &Path) -> Result<Metadata, FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let stats = get_fs()?.lstat(path.to_string()).map_err(catchFsError)?;
+        let stats = get_fs()?.lstat(path.to_string()).map_err(catch_fs_error)?;
         get_metadata(&stats.file_type())
     }
     fn remove_file(&self, path: &Path) -> Result<(), FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        get_fs()?.deleteFile(path.to_string()).map_err(catchFsError)
+        get_fs()?
+            .deleteFile(path.to_string())
+            .map_err(catch_fs_error)
     }
     fn new_open_options(&self) -> OpenOptions {
         OpenOptions::new(Box::new(IndexedFileOpener))
     }
 }
 
-fn catchFsError(err: JsValue) -> FsError {
+fn catch_fs_error(err: JsValue) -> FsError {
     if let Ok(err) = err.dyn_into::<js_sys::Error>() {
         if format!("{}", err.message()).starts_with("ENOENT") {
             FsError::EntityNotFound
@@ -141,16 +143,68 @@ impl FileOpener for IndexedFileOpener {
     fn open(
         &mut self,
         path: &Path,
-        _conf: &wasmer_vfs::OpenOptionsConfig,
+        conf: &wasmer_vfs::OpenOptionsConfig,
     ) -> wasmer_vfs::Result<Box<dyn VirtualFile + Send + Sync + 'static>> {
+        let mut write = conf.write();
+        let append = conf.append();
+        let mut truncate = conf.truncate();
+        let mut create = conf.create();
+        let create_new = conf.create_new();
+
+        // If `create_new` is used, `create` and `truncate ` are ignored.
+        if create_new {
+            create = false;
+            truncate = false;
+        }
+
+        // To truncate a file, `write` must be used.
+        if truncate && !write {
+            return Err(FsError::PermissionDenied);
+        }
+
+        // `append` is semantically equivalent to `write` + `append`
+        // but let's keep them exclusive.
+        if append {
+            write = false;
+        }
+
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let data: js_sys::Uint8Array =
-            get_fs()?.readFile(path.to_string()).map_err(catchFsError)?;
+
+        let exists = match get_fs()?.stat(path.to_string()).map_err(catch_fs_error) {
+            Err(FsError::EntityNotFound) => false,
+            _ => true,
+        };
+
+        if exists && create_new {
+            return Err(FsError::AlreadyExists);
+        }
+
+        let cursor = if exists {
+            let data: js_sys::Uint8Array = get_fs()?
+                .readFile(path.to_string())
+                .map_err(catch_fs_error)?;
+            let mut cursor = Cursor::new(data.to_vec());
+
+            if truncate {
+                cursor.get_mut().clear()
+            }
+
+            if append {
+                cursor.seek(SeekFrom::End(0))?;
+            } else {
+                cursor.seek(SeekFrom::Start(0))?;
+            }
+            cursor
+        } else if (create_new || create) && (write || append) {
+            Cursor::new(Vec::new())
+        } else {
+            return Err(FsError::PermissionDenied);
+        };
         let metadata = get_metadata("file")?;
         Ok(Box::new(IndexedVirtualFile {
             path: path.to_string(),
             metadata: metadata,
-            data: Cursor::new(data.to_vec()),
+            data: cursor,
         }))
     }
 }
@@ -236,7 +290,7 @@ impl Write for IndexedVirtualFile {
             })?
             .writeFile(temp_path, data)
             .map_err(|err| {
-                std::io::Error::new(std::io::ErrorKind::ConnectionAborted, catchFsError(err))
+                std::io::Error::new(std::io::ErrorKind::ConnectionAborted, catch_fs_error(err))
             })
     }
 }
@@ -271,6 +325,6 @@ impl VirtualFile for IndexedVirtualFile {
     fn unlink(&mut self) -> Result<(), FsError> {
         get_fs()?
             .deleteFile(self.path.to_string())
-            .map_err(catchFsError)
+            .map_err(catch_fs_error)
     }
 }
