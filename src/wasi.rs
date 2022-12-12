@@ -19,7 +19,7 @@ export type WasiConfig = {
     /** Preopened directories. */
     readonly preopens?: Record<string, string>;
     /** The in-memory filesystem that should be used. */
-    readonly fs?: MemFS;
+    readonly fs?: MemFS | IndexedFS;
 };
 "#;
 

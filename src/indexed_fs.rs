@@ -8,7 +8,6 @@ use wasmer_vfs::{
 
 static FS_NAME: &str = "indexedFS";
 
-// #[wasm_bindgen(module = "https://esm.sh/browserfs")] // for tests
 #[wasm_bindgen(module = "sync-idb-fs")]
 extern "C" {
     #[derive(Debug)]
@@ -65,22 +64,17 @@ impl IndexedFS {
 impl FileSystem for IndexedFS {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
         let path = path.to_str().ok_or(FsError::UnknownError)?.to_string();
-        let array = get_fs()?.readdir(path.clone()).map_err(catch_fs_error)?;
+        let array = get_fs()?.readdir(path).map_err(catch_fs_error)?;
         let data = array
             .iter()
             .map(|x| {
-                let move_path = path.clone();
-                {
-                    let name: js_sys::JsString = x.dyn_into().map_err(|_| FsError::UnknownError)?;
-                    let name: String = format!("{}", name).into();
-                    let stats = get_fs()?
-                        .stat(move_path.clone() + "/" + &name)
-                        .map_err(catch_fs_error)?;
-                    Ok(DirEntry {
-                        path: name.into(),
-                        metadata: get_metadata(&stats.file_type()),
-                    })
-                }
+                let filepath: js_sys::JsString = x.dyn_into().map_err(|_| FsError::UnknownError)?;
+                let filepath: String = format!("{}", filepath).into();
+                let stats = get_fs()?.stat(filepath.clone()).map_err(catch_fs_error)?;
+                Ok(DirEntry {
+                    path: filepath.into(),
+                    metadata: get_metadata(&stats.file_type()),
+                })
             })
             .collect::<Result<_, FsError>>()?;
         Ok(ReadDir::new(data))
@@ -122,6 +116,7 @@ impl FileSystem for IndexedFS {
 }
 
 fn catch_fs_error(err: JsValue) -> FsError {
+    web_sys::console::log_1(&err);
     if let Ok(err) = err.dyn_into::<js_sys::Error>() {
         if format!("{}", err.message()).starts_with("ENOENT") {
             FsError::EntityNotFound
